@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.models.appointment import AIStatus, Appointment
 from app.services.ai_service import AIService
@@ -15,7 +15,7 @@ async def process_pre_visit_summary(appointment_id: uuid.UUID) -> None:
     No-ops when ENABLE_LLM is False (e.g. CI / test environments) to avoid
     opening AsyncSessionLocal on a closed event loop.
     """
-    if not settings.enable_llm:
+    if not get_settings().enable_llm:
         return
 
     async with AsyncSessionLocal() as db:
@@ -44,7 +44,7 @@ async def process_post_visit_summary(appointment_id: uuid.UUID) -> None:
     Background task to generate AI summary for doctor notes.
     No-ops when ENABLE_LLM is False (e.g. CI / test environments).
     """
-    if not settings.enable_llm:
+    if not get_settings().enable_llm:
         return
 
     async with AsyncSessionLocal() as db:
