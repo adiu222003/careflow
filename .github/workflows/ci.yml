@@ -51,14 +51,14 @@ jobs:
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/careflow_test
-          JWT_SECRET: ci-test-secret
+          JWT_SECRET: ci-test-secret-at-least-16-chars
           INTERNAL_JOB_SECRET: ci-job-secret
         run: alembic upgrade head
 
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/careflow_test
-          JWT_SECRET: ci-test-secret
+          JWT_SECRET: ci-test-secret-at-least-16-chars
           JWT_EXPIRE_MINUTES: "60"
           TOKEN_ENCRYPTION_KEY: ""
           ENABLE_LLM: "false"
