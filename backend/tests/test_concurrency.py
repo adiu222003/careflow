@@ -4,13 +4,17 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.core.database import AsyncSessionLocal
 from app.models.appointment import Appointment, AppointmentHold
 
 
 @pytest.mark.asyncio
-async def test_concurrency_holds(concurrent_client: AsyncClient, seed_data: dict) -> None:
+async def test_concurrency_holds(
+    concurrent_client: AsyncClient,
+    seed_data: dict,
+    test_engine: AsyncEngine,
+) -> None:
     """
     Test A: 10 simultaneous POST /appointments/hold for the same doctor + slot.
     Result: Exactly 1 HELD hold, 9 receive 409 SLOT_NO_LONGER_AVAILABLE.
@@ -37,7 +41,9 @@ async def test_concurrency_holds(concurrent_client: AsyncClient, seed_data: dict
         for _ in range(10)
     ]
 
-    responses = await asyncio.gather(*tasks)
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    from httpx import Response
+    responses: list[Response] = [r for r in raw if isinstance(r, Response)]
 
     # Exactly one should succeed (201), the rest should fail (409)
     successes = [r for r in responses if r.status_code == 201]
@@ -46,9 +52,10 @@ async def test_concurrency_holds(concurrent_client: AsyncClient, seed_data: dict
     assert len(successes) == 1
     assert len(conflicts) == 9
 
-    # Check that exactly one hold exists in the DB
-    # We use a fresh session to verify DB state
-    async with AsyncSessionLocal() as db:
+    # Check DB state using the fixture-provided engine (bound to THIS test's event loop)
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with session_factory() as db:
         stmt = select(AppointmentHold).where(
             AppointmentHold.doctor_id == doctor_id,
             AppointmentHold.start_time == start_time
@@ -59,11 +66,14 @@ async def test_concurrency_holds(concurrent_client: AsyncClient, seed_data: dict
 
 
 @pytest.mark.asyncio
-async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: dict) -> None:
+async def test_concurrency_bookings(
+    concurrent_client: AsyncClient,
+    seed_data: dict,
+    test_engine: AsyncEngine,
+) -> None:
     """
     Test B: Multiple simultaneous POST /appointments/book for the same slot.
-    This simulates multiple users successfully getting a hold and then concurrently trying to book it.
-    Result: Exactly 1 CONFIRMED appointment, others receive 409 SLOT_NO_LONGER_AVAILABLE.
+    Result: Exactly 1 CONFIRMED appointment, others receive 409.
     """
     patient_token = seed_data["patient_token"]
     doctor_id = seed_data["doctor_id"]
@@ -72,7 +82,7 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
     start_time = now + timedelta(days=2)
     end_time = start_time + timedelta(minutes=30)
 
-    # 1. User gets 1 valid hold.
+    # 1. Get a single valid hold first
     hold_payload = {
         "doctor_id": str(doctor_id),
         "start_time": start_time.isoformat(),
@@ -83,7 +93,7 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
     assert r.status_code == 201
     hold_id = r.json()["data"]["hold_id"]
 
-    # 2. User fires 10 concurrent requests to Book that exact hold.
+    # 2. Fire 10 concurrent book requests for that same hold
     book_payload = {
         "hold_id": hold_id,
         "symptoms": "Test double click booking"
@@ -94,7 +104,9 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
         for _ in range(10)
     ]
 
-    responses = await asyncio.gather(*tasks)
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    from httpx import Response
+    responses: list[Response] = [r for r in raw if isinstance(r, Response)]
 
     successes = [r for r in responses if r.status_code == 201]
     conflicts = [r for r in responses if r.status_code == 409]
@@ -102,8 +114,10 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
     assert len(successes) == 1, f"Expected 1 success, got {len(successes)}: {[r.json() for r in responses]}"
     assert len(conflicts) == 9
 
-    # Verify exactly 1 CONFIRMED appointment exists
-    async with AsyncSessionLocal() as db:
+    # Verify DB state using the fixture-provided engine (same event loop as this test)
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with session_factory() as db:
         stmt = select(Appointment).where(
             Appointment.doctor_id == doctor_id,
             Appointment.start_time == start_time
