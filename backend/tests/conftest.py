@@ -39,7 +39,7 @@ def event_loop_policy():
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def test_engine():
+async def setup_test_db():
     from sqlalchemy import text
     from sqlalchemy.pool import NullPool
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
@@ -47,9 +47,18 @@ async def test_engine():
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist;"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    yield engine
+    yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def test_engine(setup_test_db):
+    """Creates a fresh engine per test, bound to the test's event loop."""
+    from sqlalchemy.pool import NullPool
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
+    yield engine
     await engine.dispose()
 
 
