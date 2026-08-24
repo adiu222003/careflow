@@ -40,15 +40,15 @@ async def process_jobs(
         )
 
     # Placeholder: full implementation in Stage 5
-    from app.services.notification_service import NotificationService
     from app.services.calendar_service import CalendarService
-    
+    from app.services.notification_service import NotificationService
+
     notification_service = NotificationService(db)
     notifications_processed = await notification_service.process_pending_jobs()
-    
+
     calendar_service = CalendarService(db)
     calendar_events_processed = await calendar_service.sync_pending_events()
-    
+
     results = {
         "notification_jobs_processed": notifications_processed,
         "medication_reminders_processed": 0,

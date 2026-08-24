@@ -1,10 +1,12 @@
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-from app.models.appointment import AppointmentHold, Appointment
+
 from app.core.database import AsyncSessionLocal
+from app.models.appointment import Appointment, AppointmentHold
 
 
 @pytest.mark.asyncio
@@ -15,35 +17,35 @@ async def test_concurrency_holds(concurrent_client: AsyncClient, seed_data: dict
     """
     patient_token = seed_data["patient_token"]
     doctor_id = seed_data["doctor_id"]
-    
+
     # Target slot
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start_time = now + timedelta(days=1)
     end_time = start_time + timedelta(minutes=30)
-    
+
     payload = {
         "doctor_id": str(doctor_id),
         "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat()
     }
-    
+
     headers = {"Authorization": f"Bearer {patient_token}"}
-    
+
     # Fire 10 concurrent requests
     tasks = [
         concurrent_client.post("/api/v1/appointments/hold", json=payload, headers=headers)
         for _ in range(10)
     ]
-    
+
     responses = await asyncio.gather(*tasks)
-    
+
     # Exactly one should succeed (201), the rest should fail (409)
     successes = [r for r in responses if r.status_code == 201]
     conflicts = [r for r in responses if r.status_code == 409]
-    
+
     assert len(successes) == 1
     assert len(conflicts) == 9
-    
+
     # Check that exactly one hold exists in the DB
     # We use a fresh session to verify DB state
     async with AsyncSessionLocal() as db:
@@ -65,11 +67,11 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
     """
     patient_token = seed_data["patient_token"]
     doctor_id = seed_data["doctor_id"]
-    
-    now = datetime.now(timezone.utc)
+
+    now = datetime.now(UTC)
     start_time = now + timedelta(days=2)
     end_time = start_time + timedelta(minutes=30)
-    
+
     # 1. User gets 1 valid hold.
     hold_payload = {
         "doctor_id": str(doctor_id),
@@ -80,26 +82,26 @@ async def test_concurrency_bookings(concurrent_client: AsyncClient, seed_data: d
     r = await concurrent_client.post("/api/v1/appointments/hold", json=hold_payload, headers=headers)
     assert r.status_code == 201
     hold_id = r.json()["data"]["hold_id"]
-    
+
     # 2. User fires 10 concurrent requests to Book that exact hold.
     book_payload = {
         "hold_id": hold_id,
         "symptoms": "Test double click booking"
     }
-    
+
     tasks = [
         concurrent_client.post("/api/v1/appointments/book", json=book_payload, headers=headers)
         for _ in range(10)
     ]
-    
+
     responses = await asyncio.gather(*tasks)
-    
+
     successes = [r for r in responses if r.status_code == 201]
     conflicts = [r for r in responses if r.status_code == 409]
-    
+
     assert len(successes) == 1, f"Expected 1 success, got {len(successes)}: {[r.json() for r in responses]}"
     assert len(conflicts) == 9
-    
+
     # Verify exactly 1 CONFIRMED appointment exists
     async with AsyncSessionLocal() as db:
         stmt = select(Appointment).where(

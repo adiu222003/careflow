@@ -6,9 +6,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models.doctor import DoctorProfile
-    from app.models.calendar import OAuthToken
     from app.models.audit import AuditLog
+    from app.models.calendar import OAuthToken
+    from app.models.doctor import DoctorProfile
 
 
 import enum

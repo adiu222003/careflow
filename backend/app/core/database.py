@@ -16,6 +16,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
 
+
 def _build_engine() -> Any:
     settings = get_settings()
     return create_async_engine(
@@ -43,7 +44,7 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncGenerator[AsyncSession]:
     """FastAPI dependency — yields an async database session."""
     async with AsyncSessionLocal() as session:
         try:

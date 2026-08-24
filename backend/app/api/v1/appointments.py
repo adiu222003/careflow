@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from fastapi import APIRouter, status, BackgroundTasks
+
+from fastapi import APIRouter, BackgroundTasks, status
 
 from app.core.database import DBSession
-from app.core.dependencies import PatientUser, CurrentUser, check_appointment_access
+from app.core.dependencies import CurrentUser, PatientUser, check_appointment_access
+from app.schemas.appointment import AppointmentResponse, BookRequest, HoldRequest, HoldResponse
 from app.schemas.common import success
-from app.schemas.appointment import HoldRequest, HoldResponse, BookRequest, AppointmentResponse
 from app.services.appointment_service import AppointmentService
 from app.tasks.ai_tasks import process_pre_visit_summary
 
@@ -19,8 +20,9 @@ async def list_my_appointments(
     current_user: CurrentUser,
 ) -> dict:
     from sqlalchemy import select
+
     from app.models.appointment import Appointment
-    
+
     if current_user.role == "PATIENT":
         stmt = select(Appointment).where(Appointment.patient_id == current_user.id).order_by(Appointment.start_time.desc())
     elif current_user.role == "DOCTOR":
@@ -29,7 +31,7 @@ async def list_my_appointments(
         stmt = select(Appointment).where(Appointment.doctor_id == current_user.doctor_profile.id).order_by(Appointment.start_time.desc())
     else:
         stmt = select(Appointment).order_by(Appointment.start_time.desc())
-        
+
     result = await db.execute(stmt)
     appts = result.scalars().all()
     return success([AppointmentResponse.model_validate(a).model_dump() for a in appts])
@@ -66,17 +68,18 @@ async def cancel_appointment(
 ) -> dict:
     service = AppointmentService(db)
     appt = await service.get_appointment(appointment_id)
-    
+
     # Check if current user is allowed to cancel this appointment
     check_appointment_access(appt, current_user)
-    
+
     cancelled = await service.cancel_appointment(appointment_id, current_user.id)
     return success(AppointmentResponse.model_validate(cancelled).model_dump())
 
 
+from app.core.dependencies import DoctorUser
 from app.schemas.appointment import ConsultationRequest
 from app.tasks.ai_tasks import process_post_visit_summary
-from app.core.dependencies import DoctorUser
+
 
 @router.post("/{appointment_id}/consultation", response_model=dict)
 async def submit_consultation(
@@ -89,9 +92,9 @@ async def submit_consultation(
     service = AppointmentService(db)
     appt = await service.get_appointment(appointment_id)
     check_appointment_access(appt, current_user)
-    
+
     appt = await service.submit_consultation(appointment_id, current_user.id, request.doctor_notes)
-    
+
     background_tasks.add_task(process_post_visit_summary, appt.id)
-    
+
     return success(AppointmentResponse.model_validate(appt).model_dump())

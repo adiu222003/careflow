@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.database import DBSession
 from app.core.dependencies import CurrentUser
@@ -42,7 +43,7 @@ async def auth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "INVALID_STATE", "message": "Invalid OAuth state parameter."},
         )
-        
+
     service = CalendarService(db)
     try:
         await service.exchange_code_for_tokens(code, user_id)
@@ -51,7 +52,7 @@ async def auth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "OAUTH_FAILED", "message": str(e)},
         )
-        
+
     return success({"message": "Calendar connected successfully."})
 
 
@@ -63,11 +64,12 @@ async def disconnect_calendar(
     """
     Disconnects the Google Calendar by deleting the OAuth tokens.
     """
-    from app.models.calendar import OAuthToken
     from sqlalchemy import delete
-    
+
+    from app.models.calendar import OAuthToken
+
     stmt = delete(OAuthToken).where(OAuthToken.user_id == current_user.id)
     await db.execute(stmt)
     await db.commit()
-    
+
     return success({"message": "Calendar disconnected."})

@@ -40,8 +40,8 @@ def event_loop_policy():
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
-    from sqlalchemy.pool import NullPool
     from sqlalchemy import text
+    from sqlalchemy.pool import NullPool
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist;"))
@@ -54,7 +54,7 @@ async def test_engine():
 
 
 @pytest_asyncio.fixture(loop_scope="function")
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(test_engine) -> AsyncGenerator[AsyncSession]:
     """Yields a fresh session per test, rolled back on completion."""
     session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
     async with session_factory() as session:
@@ -63,7 +63,7 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     """AsyncClient with the test DB session injected."""
     async def _override_get_db():
         yield db_session
@@ -75,10 +75,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
     app.dependency_overrides.clear()
 @pytest_asyncio.fixture
-async def concurrent_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
+async def concurrent_client(test_engine) -> AsyncGenerator[AsyncClient]:
     """AsyncClient that overrides get_db to yield a fresh session from test_engine per request."""
     session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    
+
     async def _override_get_db():
         async with session_factory() as session:
             try:
@@ -86,27 +86,28 @@ async def concurrent_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
             except Exception:
                 await session.rollback()
                 raise
-                
+
     app.dependency_overrides[get_db] = _override_get_db
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
-from app.models.user import User, Role
-from app.models.doctor import DoctorProfile
-from app.core.security import hash_password, create_access_token
 import uuid
+
+from app.core.security import create_access_token, hash_password
+from app.models.doctor import DoctorProfile
+from app.models.user import Role, User
+
 
 @pytest_asyncio.fixture
 async def seed_data(db_session: AsyncSession) -> dict:
     """Creates a basic patient and doctor for tests."""
-    import uuid
     unique_suffix = str(uuid.uuid4())[:8]
     patient_id = uuid.uuid4()
     doctor_user_id = uuid.uuid4()
     doctor_profile_id = uuid.uuid4()
-    
+
     patient = User(
         id=patient_id,
         email=f"patient_{unique_suffix}@careflow.com",
@@ -115,7 +116,7 @@ async def seed_data(db_session: AsyncSession) -> dict:
         role=Role.PATIENT,
         is_active=True
     )
-    
+
     doctor_user = User(
         id=doctor_user_id,
         email=f"doctor_{unique_suffix}@careflow.com",
@@ -124,20 +125,20 @@ async def seed_data(db_session: AsyncSession) -> dict:
         role=Role.DOCTOR,
         is_active=True
     )
-    
+
     doctor_profile = DoctorProfile(
         id=doctor_profile_id,
         user_id=doctor_user_id,
         specialisation="General",
         slot_duration_minutes=30
     )
-    
+
     db_session.add_all([patient, doctor_user, doctor_profile])
     await db_session.commit()
-        
+
     patient_token = create_access_token(str(patient_id), "PATIENT")
     doctor_token = create_access_token(str(doctor_user_id), "DOCTOR")
-    
+
     return {
         "patient_id": patient_id,
         "doctor_user_id": doctor_user_id,

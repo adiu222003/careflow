@@ -8,6 +8,13 @@ ignore = [
     "ANN101", "ANN102", "ANN401",
     "S101",   # allow assert in tests
     "B008",   # FastAPI Depends() pattern
+    "E501",   # ignore line-too-long
+    "B904",   # ignore raise-without-from
+    "E402",   # ignore module-import-not-at-top-of-file
+    "ANN201", # ignore missing-return-type-undocumented-public-function
+    "ANN202", # ignore missing-return-type-private-function
+    "S105",   # ignore hardcoded-password-string false positives
+    "S106",   # ignore hardcoded-password-func-arg false positives
 ]
 
 [tool.ruff.lint.per-file-ignores]

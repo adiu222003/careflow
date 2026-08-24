@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, health, internal, doctors, appointments
+from app.api.v1 import appointments, auth, doctors, health, internal
 
 router = APIRouter(prefix="/api/v1")
 
@@ -15,6 +15,7 @@ router.include_router(internal.router)
 router.include_router(doctors.router)
 router.include_router(appointments.router)
 from app.api.v1 import calendar
+
 router.include_router(calendar.router)
 
 # Additional routers added in subsequent stages:

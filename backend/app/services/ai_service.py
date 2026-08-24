@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any
 
 try:
     from google import genai
@@ -12,6 +11,7 @@ except ImportError:
     HAS_GENAI = False
 
 from app.core.config import get_settings
+
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
@@ -60,15 +60,16 @@ class AIService:
         prompt = f"""
         Please structure the following raw patient symptoms into a clinical summary.
         Extract the main concerns and estimate urgency (Low, Medium, High).
-        
+
         Patient Symptoms:
         {symptoms_text}
         """
-        
+
         try:
             import asyncio
+
             from google.genai import types
-            
+
             def _sync_call():
                 return self.client.models.generate_content(
                     model=settings.gemini_model,
@@ -80,7 +81,7 @@ class AIService:
                         system_instruction=self.system_instruction
                     )
                 )
-                
+
             response = await asyncio.to_thread(_sync_call)
             if not response.text:
                 raise ValueError("Empty response text")
@@ -104,22 +105,23 @@ class AIService:
                 follow_up_recommended=False,
                 action_items=[]
             )
-            
+
         if not self.client:
             return self._mock_post_visit_summary(doctor_notes)
-            
+
         prompt = f"""
         Please structure the following raw doctor notes into a clean, professional clinical summary.
         Extract any action items and determine if follow-up is recommended.
-        
+
         Doctor Notes:
         {doctor_notes}
         """
 
         try:
             import asyncio
+
             from google.genai import types
-            
+
             def _sync_call():
                 return self.client.models.generate_content(
                     model=settings.gemini_model,
@@ -152,7 +154,7 @@ class AIService:
             urgency="Medium",
             key_concerns=["Patient reported symptoms", "Needs review"]
         )
-        
+
     def _mock_post_visit_summary(self, text: str) -> PostVisitSummary:
         """Mock fallback when LLM is disabled."""
         return PostVisitSummary(

@@ -1,28 +1,22 @@
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import Sequence
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError, DBAPIError
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ConflictError, HoldExpiredError, NotFoundError, SlotUnavailableError
 from app.models.appointment import Appointment, AppointmentHold, AppointmentStatus, HoldStatus
+from app.models.audit import AuditLog
+from app.models.calendar import CalendarEvent, CalendarEventStatus, CalendarOperation
 from app.models.doctor import DoctorProfile
 from app.models.notification import NotificationJob, NotificationJobStatus, NotificationJobType
-from app.models.calendar import CalendarEvent, CalendarEventStatus, CalendarOperation
-from app.models.audit import AuditLog
-from app.core.exceptions import (
-    NotFoundError, 
-    SlotUnavailableError, 
-    HoldExpiredError,
-    ConflictError
-)
-from app.schemas.appointment import HoldRequest, BookRequest, RescheduleRequest
+from app.schemas.appointment import BookRequest, HoldRequest
 
 
 class AppointmentService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_hold(self, patient_id: uuid.UUID, request: HoldRequest) -> AppointmentHold:
@@ -31,14 +25,14 @@ class AppointmentService:
         If it fails because of the PostgreSQL exclusion constraint (overlapping HELD slot),
         it throws a SlotUnavailableError.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires_at = now + timedelta(minutes=5)
-        
+
         # Check if doctor exists and slot duration matches
         doctor = await self.db.get(DoctorProfile, request.doctor_id)
         if not doctor:
             raise NotFoundError("Doctor not found.")
-            
+
         # First quickly check if there's already a CONFIRMED appointment
         # The DB constraint protects us anyway, but this gives a clearer error
         stmt = select(Appointment).where(
@@ -59,9 +53,9 @@ class AppointmentService:
             expires_at=expires_at,
             status=HoldStatus.HELD
         )
-        
+
         self.db.add(hold)
-        
+
         # Log the hold
         self.db.add(AuditLog(
             actor_user_id=patient_id,
@@ -70,7 +64,7 @@ class AppointmentService:
             entity_id=hold.id,
             extra={"doctor_id": str(request.doctor_id), "start": request.start_time.isoformat()}
         ))
-        
+
         try:
             await self.db.commit()
             await self.db.refresh(hold)
@@ -87,21 +81,21 @@ class AppointmentService:
         hold = await self.db.get(AppointmentHold, request.hold_id)
         if not hold:
             raise NotFoundError("Hold not found.")
-            
+
         if hold.patient_id != patient_id:
             raise ConflictError("Hold belongs to another patient.")
-            
+
         if hold.status != HoldStatus.HELD:
             raise ConflictError("Hold is already processed or cancelled.")
-            
-        if hold.expires_at < datetime.now(timezone.utc):
+
+        if hold.expires_at < datetime.now(UTC):
             hold.status = HoldStatus.EXPIRED
             await self.db.commit()
             raise HoldExpiredError()
 
         # Update hold
         hold.status = HoldStatus.CONVERTED
-        
+
         # Create appointment
         import secrets
         appointment = Appointment(
@@ -114,7 +108,7 @@ class AppointmentService:
             booking_reference=secrets.token_urlsafe(8).upper()[:10]
         )
         self.db.add(appointment)
-        
+
         # Flush to get the appointment ID for the foreign keys below
         try:
             await self.db.flush()
@@ -138,7 +132,7 @@ class AppointmentService:
             status=NotificationJobStatus.PENDING,
             payload={"template": "appointment_confirmed_patient"}
         ))
-        
+
         # Outbox: Calendar Sync (Patient & Doctor)
         self.db.add(CalendarEvent(
             user_id=patient_id,
@@ -147,7 +141,7 @@ class AppointmentService:
             operation=CalendarOperation.CREATE,
             idempotency_key=f"{appointment.id}_{patient_id}_CREATE"
         ))
-        
+
         # Note: We need the doctor's user_id for their calendar sync
         doctor = await self.db.get(DoctorProfile, hold.doctor_id)
         if doctor:
@@ -182,9 +176,9 @@ class AppointmentService:
         appt = await self.db.get(Appointment, appointment_id, options=[selectinload(Appointment.doctor)])
         if not appt:
             raise NotFoundError()
-            
+
         appt.status = AppointmentStatus.CANCELLED
-        
+
         # Get patient email
         from app.models.user import User
         patient = await self.db.get(User, appt.patient_id)
@@ -198,7 +192,7 @@ class AppointmentService:
             status=NotificationJobStatus.PENDING,
             payload={"template": "appointment_cancelled"}
         ))
-        
+
         self.db.add(CalendarEvent(
             user_id=appt.patient_id,
             appointment_id=appt.id,
@@ -206,7 +200,7 @@ class AppointmentService:
             operation=CalendarOperation.DELETE,
             idempotency_key=f"{appt.id}_{appt.patient_id}_DELETE"
         ))
-        
+
         if appt.doctor:
             self.db.add(CalendarEvent(
                 user_id=appt.doctor.user_id,
@@ -222,7 +216,7 @@ class AppointmentService:
             entity_type="Appointment",
             entity_id=appt.id
         ))
-        
+
         await self.db.commit()
         await self.db.refresh(appt)
         return appt
@@ -237,17 +231,17 @@ class AppointmentService:
         appt = await self.db.get(Appointment, appointment_id)
         if not appt:
             raise NotFoundError("Appointment not found")
-            
+
         appt.doctor_notes = notes
         appt.status = AppointmentStatus.COMPLETED
-        
+
         self.db.add(AuditLog(
             actor_user_id=doctor_user_id,
             action="DOCTOR_SUBMITTED_CONSULTATION",
             entity_type="Appointment",
             entity_id=appt.id
         ))
-        
+
         await self.db.commit()
         await self.db.refresh(appt)
         return appt

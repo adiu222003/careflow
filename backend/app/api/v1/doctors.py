@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Sequence
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.core.database import DBSession
 from app.core.dependencies import CurrentUser
 from app.schemas.common import success
-from app.schemas.doctor import DoctorResponse, DoctorAvailabilityResponse
+from app.schemas.doctor import DoctorResponse
 from app.services.doctor_service import DoctorService
 
 router = APIRouter(prefix="/doctors", tags=["Doctors"])

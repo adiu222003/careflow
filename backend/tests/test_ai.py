@@ -1,7 +1,9 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from app.services.ai_service import AIService, PreVisitSummary, PostVisitSummary
+import pytest
+
+from app.services.ai_service import AIService
+
 
 @pytest.mark.asyncio
 async def test_pre_visit_summary_empty():
@@ -43,14 +45,14 @@ async def test_pre_visit_summary_llm_success():
     service = AIService()
     mock_client = MagicMock()
     service.client = mock_client
-    
+
     mock_response = MagicMock()
     mock_response.text = '{"summary": "Bad headache.", "urgency": "High", "key_concerns": ["Headache"]}'
-    
+
     # We need to mock asyncio.to_thread because it calls generate_content
     with patch("asyncio.to_thread", return_value=mock_response):
         result = await service.generate_pre_visit_summary("Severe headache")
-        
+
     assert result.summary == "Bad headache."
     assert result.urgency == "High"
     assert result.key_concerns == ["Headache"]
@@ -60,10 +62,10 @@ async def test_post_visit_summary_llm_failure():
     service = AIService()
     mock_client = MagicMock()
     service.client = mock_client
-    
+
     # Simulate an exception in to_thread
     with patch("asyncio.to_thread", side_effect=Exception("API Error")):
         result = await service.generate_post_visit_summary("Some notes")
-        
+
     assert "AI Generation Failed" in result.structured_notes
     assert result.action_items == ["Review raw notes"]

@@ -17,11 +17,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models.doctor import DoctorProfile
-    from app.models.user import User
-    from app.models.prescription import Prescription
-    from app.models.notification import NotificationJob
     from app.models.calendar import CalendarEvent
+    from app.models.doctor import DoctorProfile
+    from app.models.notification import NotificationJob
+    from app.models.prescription import Prescription
+    from app.models.user import User
 
 
 import enum
@@ -193,7 +193,7 @@ class Appointment(Base):
 
     def __repr__(self) -> str:
         return f"<Appointment id={self.id} ref={self.booking_reference} status={self.status}>"
-        
+
     __table_args__ = (
         ExcludeConstraint(
             ("doctor_id", "="),
