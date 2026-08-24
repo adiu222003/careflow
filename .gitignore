@@ -1,0 +1,62 @@
+# ─── Secrets & credentials ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+credentials.json
+client_secret*.json
+token.json
+service_account*.json
+*_oauth_token*
+
+# ─── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ─── Alembic ───────────────────────────────────────────────────────────────
+# Keep migrations, ignore only generated pyc inside alembic
+backend/alembic/__pycache__/
+
+# ─── Node / Frontend ───────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.vercel/
+frontend/.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+# ─── Docker ────────────────────────────────────────────────────────────────
+*.log
+
+# ─── IDE / OS ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Render / Deployment ───────────────────────────────────────────────────
+.render/

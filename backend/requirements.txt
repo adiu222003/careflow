@@ -1,0 +1,54 @@
+# ─── Web framework ────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.19
+
+# ─── Database ─────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10  # for alembic sync operations only
+
+# ─── Validation ───────────────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.6.1
+email-validator==2.2.0
+
+# ─── Auth ─────────────────────────────────────────────────────────────────
+PyJWT==2.10.1
+argon2-cffi==23.1.0
+
+# ─── Encryption (OAuth token storage) ─────────────────────────────────────
+cryptography==43.0.3
+
+# ─── Rate limiting ────────────────────────────────────────────────────────
+slowapi==0.1.9
+
+# ─── HTTP client (Google Calendar API, Gemini) ────────────────────────────
+httpx==0.28.1
+google-api-python-client==2.155.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+
+# 🤖 AI / Gemini ──────────────────────────────────────────────────────────────
+google-genai==0.3.0
+
+# ─── Email ────────────────────────────────────────────────────────────────
+resend==2.5.1
+
+# ─── Background / scheduling ──────────────────────────────────────────────
+# Job processing is done inline via the /internal/jobs/process endpoint
+# triggered by GitHub Actions scheduler — no persistent worker required
+
+# ─── Utilities ────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+tenacity==9.0.0   # retry logic for external services
+
+# ─── Dev / testing ────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.28.1     # AsyncClient for FastAPI testing
+anyio==4.7.0
+ruff==0.8.4
+mypy==1.13.0

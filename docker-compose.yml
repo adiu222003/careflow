@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: careflow_postgres
+    environment:
+      POSTGRES_DB: careflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d careflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: careflow_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/careflow
+      JWT_SECRET: dev-secret-change-in-production
+      JWT_EXPIRE_MINUTES: "60"
+      TOKEN_ENCRYPTION_KEY: ""
+      ENABLE_LLM: "false"
+      ENABLE_EMAIL: "false"
+      ENABLE_GOOGLE_CALENDAR: "false"
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.0-flash
+      RESEND_API_KEY: ""
+      EMAIL_FROM: noreply@careflow.demo
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      GOOGLE_REDIRECT_URI: http://localhost:8000/api/v1/calendar/callback
+      GOOGLE_CALENDAR_SCOPE: https://www.googleapis.com/auth/calendar.events
+      INTERNAL_JOB_SECRET: dev-job-secret
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:3000
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

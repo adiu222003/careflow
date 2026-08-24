@@ -1,0 +1,28 @@
+name: Job Scheduler
+
+on:
+  schedule:
+    # Every 5 minutes — processes due notification jobs, medication reminders,
+    # calendar retries, and expired slot holds.
+    # Note: GitHub Actions cron minimum is ~1 min but delivery is best-effort.
+    # Jobs are processed approximately every 5 minutes under normal operation.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:  # Allow manual trigger for testing
+
+jobs:
+  process-jobs:
+    name: Process due background jobs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger job processor
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.BACKEND_URL }}/api/v1/internal/jobs/process" \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_JOB_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30)
+          echo "Response status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Job processor returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
