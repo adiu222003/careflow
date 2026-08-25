@@ -13,6 +13,8 @@ jobs:
   process-jobs:
     name: Process due background jobs
     runs-on: ubuntu-latest
+    # Only run if BACKEND_URL secret is configured (i.e. backend is deployed)
+    if: ${{ secrets.BACKEND_URL != '' }}
     steps:
       - name: Trigger job processor
         run: |
